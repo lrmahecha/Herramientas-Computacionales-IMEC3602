@@ -1,0 +1,1169 @@
+---
+title: "Análisis Deserción IMEC 201110 - 201810"
+output: html_notebook
+---
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+En la siguiente sección de código se definen los directorios de lectura y escritura de datos y se leen los archivos que contienen la información de de los estudiantes de IMEC.
+
+```{r}
+base_dir = file.path(".", "datos")
+output_dir = file.path(".", "output")
+data_csv = file.path(base_dir,'cursos.csv')
+cursos_df = read.csv(data_csv)
+data_csv = file.path(base_dir,'estados_academicos.csv')
+estados_academicos_df = read.csv(data_csv,fileEncoding = "utf-8")
+```
+
+Ahora producimos un pequeño resumen de los estados académicos de los estudiantes.
+
+```{r}
+summary(estados_academicos_df)
+```
+
+Extraemos los códigos de los estudiantes que han desertado del programa así como de los graduandos para usar como base de las comparaciones que se van a realizar.  
+
+```{r}
+desertores_cod <- unique(estados_academicos_df$CODIGO_ESTUDIANTE[
+  estados_academicos_df$DESERTOR == 'TRUE'])
+grados_cod <- unique(estados_academicos_df$CODIGO_ESTUDIANTE[
+  estados_academicos_df$GRADO == 'TRUE'])
+```
+
+```{r}
+estados_academicos_df[
+  estados_academicos_df$CODIGO_ESTUDIANTE == desertores_cod[344] & 
+  estados_academicos_df$SOBREPASO_ACADEMICO == 'PRIMIPARO',]
+```
+
+Ahora vamos a extraer solo los desertores y graduandos que hicieron todo el programa de IMEC desde primiparos.
+
+```{r}
+desertores_prim_cod = c()
+counter = 1
+for (i in 1:length(desertores_cod)) {
+  estudiante = desertores_cod[i]
+  sem01 = estados_academicos_df[
+    estados_academicos_df$CODIGO_ESTUDIANTE == estudiante,][1,'PERIODO']
+  if (estados_academicos_df[
+  estados_academicos_df$CODIGO_ESTUDIANTE == estudiante &
+  estados_academicos_df$PERIODO == sem01,]['SOBREPASO_ACADEMICO'] == 'PRIMIPARO'){
+    desertores_prim_cod[counter] = estudiante
+    counter = counter + 1
+  }
+}
+
+grados_prim_cod = c()
+counter = 1
+for (i in 1:length(grados_cod)) {
+  estudiante = grados_cod[i]
+  sem01 = estados_academicos_df[
+    estados_academicos_df$CODIGO_ESTUDIANTE == estudiante,][1,'PERIODO']
+  if (estados_academicos_df[
+  estados_academicos_df$CODIGO_ESTUDIANTE == estudiante &
+  estados_academicos_df$PERIODO == sem01,]['SOBREPASO_ACADEMICO'] == 'PRIMIPARO'){
+    grados_prim_cod[counter] = estudiante
+    counter = counter + 1
+  }
+}
+```
+
+```{r}
+library(ggplot2)
+library(plyr)
+```
+
+Ahora voy a hacer un histograma de semestre de deserción y grado.
+
+```{r}
+num_sem_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  num_sem_des[i] = min(which(estados_academicos_df[
+    estados_academicos_df$CODIGO_ESTUDIANTE == estudiante,]['DESERTOR'] 
+    =='TRUE'))-3
+}
+
+num_sem_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  num_sem_grad[i] = min(which(estados_academicos_df[
+    estados_academicos_df$CODIGO_ESTUDIANTE == estudiante,]['GRADO'] 
+    =='TRUE'))
+}
+
+
+```
+
+```{r}
+image_file = file.path(output_dir,'sem_des_gg.pdf')
+pdf(image_file)
+dat = data.frame(X=num_sem_des)
+
+ggplot(dat, aes(x=X)) +
+        geom_histogram(aes(y=..density..),binwidth = 1, 
+                       colour="red", fill="red", alpha=.5) +
+        geom_vline(aes(xintercept=mean(X)),
+                   colour="blue",linetype="dashed", size=2) +
+  ggtitle("Semestres Deserción") +
+  xlab("Semestre") + 
+  ylab("Densidad")
+dev.off()
+
+```
+```{r}
+image_file = file.path(output_dir,'sem_grado_gg.pdf')
+pdf(image_file)
+dat = data.frame(X=num_sem_grad)
+
+ggplot(dat, aes(x=X)) +
+        geom_histogram(aes(y=..density..),binwidth = 1, 
+                       colour="blue", fill="blue", alpha=.5) +
+        geom_vline(aes(xintercept=mean(X)),
+                   colour="red",linetype="dashed", size=2) +
+  ggtitle("Semestres Grado") +
+  xlab("Semestre") + 
+  ylab("Densidad")
+dev.off()
+```
+
+Comparación de los promedios de primer semestre.
+
+```{r}
+gpa_sem1_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  gpa_sem1_des[i] = estados_academicos_df[
+                      estados_academicos_df$CODIGO_ESTUDIANTE == estudiante &
+                      estados_academicos_df$SOBREPASO_ACADEMICO == "PRIMIPARO",
+                      "PROMEDIO_SEMESTRE"]
+}
+
+gpa_sem1_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  gpa_sem1_grad[i] = estados_academicos_df[
+                      estados_academicos_df$CODIGO_ESTUDIANTE == estudiante &
+                      estados_academicos_df$SOBREPASO_ACADEMICO == "PRIMIPARO",
+                      "PROMEDIO_SEMESTRE"]
+}
+```
+
+```{r}
+image_file = file.path(output_dir,'gpa_sem1.pdf')
+pdf(image_file)
+dat1 = data.frame(GPA=gpa_sem1_des, grupo="Desertores")
+dat2 = data.frame(GPA=gpa_sem1_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, GPA.mean=mean(GPA))
+
+ggplot(dat, aes(x=GPA, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .25, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=GPA.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Promedio Primer Semestre") +
+  xlab("GPA") + 
+  ylab("Densidad") 
+dev.off()
+
+```
+
+Comparación créditos cursados primer semestre.
+
+```{r}
+credcur_sem1_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  credcur_sem1_des[i] = estados_academicos_df[
+                      estados_academicos_df$CODIGO_ESTUDIANTE == estudiante &
+                      estados_academicos_df$SOBREPASO_ACADEMICO == "PRIMIPARO",
+                      "CREDITOS_SEMESTRE_TOMADOS"]
+}
+
+credcur_sem1_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  credcur_sem1_grad[i] = estados_academicos_df[
+                      estados_academicos_df$CODIGO_ESTUDIANTE == estudiante &
+                      estados_academicos_df$SOBREPASO_ACADEMICO == "PRIMIPARO",
+                      "CREDITOS_SEMESTRE_TOMADOS"]
+}
+```
+
+```{r}
+image_file = file.path(output_dir,'credcur_sem1.pdf')
+pdf(image_file)
+dat1 = data.frame(X=credcur_sem1_des, grupo="Desertores")
+dat2 = data.frame(X=credcur_sem1_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 3, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Créditos Cursados Primer Semestre") +
+  xlab("Créditos Cursados") + 
+  ylab("Densidad") 
+dev.off()
+
+```
+
+Comparación créditos aprobados primer semestre.
+
+```{r}
+credapr_sem1_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  credapr_sem1_des[i] = estados_academicos_df[
+                      estados_academicos_df$CODIGO_ESTUDIANTE == estudiante &
+                      estados_academicos_df$SOBREPASO_ACADEMICO == "PRIMIPARO",
+                      "CREDITOS_SEMESTRE_APROBADOS"]
+}
+
+credapr_sem1_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  credapr_sem1_grad[i] = estados_academicos_df[
+                      estados_academicos_df$CODIGO_ESTUDIANTE == estudiante &
+                      estados_academicos_df$SOBREPASO_ACADEMICO == "PRIMIPARO",
+                      "CREDITOS_SEMESTRE_APROBADOS"]
+}
+```
+
+```{r}
+image_file = file.path(output_dir,'credapr_sem1.pdf')
+pdf(image_file)
+dat1 = data.frame(X=credapr_sem1_des, grupo="Desertores")
+dat2 = data.frame(X=credapr_sem1_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 3, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Créditos Aprobados Primer Semestre") +
+  xlab("Créditos Aprobados") + 
+  ylab("Densidad") 
+dev.off()
+
+```
+
+Estadísticas del examen de admisión.
+
+```{r}
+semestres = c(201110,201120,201210,201220,201310,201320,201410,201420,
+              201510,201520,201610,201620,201710,201720,201810)
+
+temp = estados_academicos_df[
+                      complete.cases(estados_academicos_df[, "COHORTE"]),]
+temp = temp[!duplicated(temp[,"CODIGO_ESTUDIANTE"]),]
+for (sem in semestres){
+  temp[temp$COHORTE == sem,]$PUNTAJE_EXAMEN = scale(
+    temp[temp$COHORTE == sem,]$PUNTAJE_EXAMEN)
+}
+
+ex_adm_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  ex_adm_des[i] = temp[temp$CODIGO_ESTUDIANTE == estudiante,
+                      "PUNTAJE_EXAMEN"]
+}
+ex_adm_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  ex_adm_grad[i] = temp[temp$CODIGO_ESTUDIANTE == estudiante,
+                      "PUNTAJE_EXAMEN"]
+}
+t.test(ex_adm_des,ex_adm_grad)
+```
+```{r}
+image_file = file.path(output_dir,'ex_adm.pdf')
+pdf(image_file)
+dat1 = data.frame(X=ex_adm_des, grupo="Desertores")
+dat2 = data.frame(X=ex_adm_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .2, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Examen Admisión") +
+  xlab("Puntaje Examen") + 
+  ylab("Densidad") 
+dev.off()
+
+```
+Ahora vamos a mirar los cursos de primer semestre.
+
+IMEC1000
+
+```{r}
+cursos = 'IMEC1000'
+
+imec1000_int_des = c()
+imec1000_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1000_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    imec1000_des[i] = NA
+  }
+  else{
+    imec1000_des[i] = tail(nota, n=1)
+  }
+}
+
+imec1000_int_grad = c()
+imec1000_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1000_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    imec1000_grad[i] = NA
+  }
+  else{
+    imec1000_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(imec1000_des,imec1000_grad)
+length(imec1000_des[!is.na(imec1000_des)])
+```
+```{r}
+image_file = file.path(output_dir,'imec1000.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1000_des, grupo="Desertores")
+dat2 = data.frame(X=imec1000_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota IMEC1000") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+```{r}
+image_file = file.path(output_dir,'imec1000int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1000_int_des, grupo="Desertores")
+dat2 = data.frame(X=imec1000_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos IMEC1000") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+IMEC1001
+
+```{r}
+cursos = 'IMEC1001'
+
+imec1001_int_des = c()
+imec1001_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1001_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    imec1001_des[i] = NA
+  }
+  else{
+    imec1001_des[i] = tail(nota, n=1)
+  }
+}
+
+imec1001_int_grad = c()
+imec1001_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1001_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    imec1001_grad[i] = NA
+  }
+  else{
+    imec1001_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(imec1001_des,imec1001_grad)
+length(imec1001_des[!is.na(imec1001_des)])
+```
+```{r}
+image_file = file.path(output_dir,'imec1001.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1001_des, grupo="Desertores")
+dat2 = data.frame(X=imec1001_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota IMEC1001") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+```{r}
+image_file = file.path(output_dir,'imec1001int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1001_int_des, grupo="Desertores")
+dat2 = data.frame(X=imec1001_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos IMEC1001") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+IMEC1503
+
+```{r}
+cursos = 'IMEC1503'
+
+imec1503_int_des = c()
+imec1503_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1503_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    imec1503_des[i] = NA
+  }
+  else{
+    imec1503_des[i] = tail(nota, n=1)
+  }
+}
+
+imec1503_int_grad = c()
+imec1503_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1503_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    imec1503_grad[i] = NA
+  }
+  else{
+    imec1503_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(imec1503_des,imec1503_grad)
+length(imec1503_des[!is.na(imec1503_des)])
+```
+```{r}
+image_file = file.path(output_dir,'imec1503.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1503_des, grupo="Desertores")
+dat2 = data.frame(X=imec1503_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota IMEC1503") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+```{r}
+image_file = file.path(output_dir,'imec1503int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1503_int_des, grupo="Desertores")
+dat2 = data.frame(X=imec1503_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos IMEC1503") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+IMEC1410
+
+```{r}
+cursos = 'IMEC1410'
+
+imec1410_int_des = c()
+imec1410_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1410_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    imec1410_des[i] = NA
+  }
+  else{
+    imec1410_des[i] = tail(nota, n=1)
+  }
+}
+
+imec1410_int_grad = c()
+imec1410_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1410_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    imec1410_grad[i] = NA
+  }
+  else{
+    imec1410_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(imec1410_des,imec1410_grad)
+length(imec1410_des[!is.na(imec1410_des)])
+```
+```{r}
+image_file = file.path(output_dir,'imec1410.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1410_des, grupo="Desertores")
+dat2 = data.frame(X=imec1410_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota IMEC1410") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+```{r}
+image_file = file.path(output_dir,'imec1410int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1410_int_des, grupo="Desertores")
+dat2 = data.frame(X=imec1410_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos IMEC1410") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+IMEC1330
+
+```{r}
+cursos = 'IMEC1330'
+
+imec1330_int_des = c()
+imec1330_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1330_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    imec1330_des[i] = NA
+  }
+  else{
+    imec1330_des[i] = tail(nota, n=1)
+  }
+}
+
+imec1330_int_grad = c()
+imec1330_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1330_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    imec1330_grad[i] = NA
+  }
+  else{
+    imec1330_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(imec1330_des,imec1330_grad)
+length(imec1330_des[!is.na(imec1330_des)])
+```
+```{r}
+image_file = file.path(output_dir,'imec1330.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1330_des, grupo="Desertores")
+dat2 = data.frame(X=imec1330_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota IMEC1330") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+```{r}
+image_file = file.path(output_dir,'imec1330int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1330_int_des, grupo="Desertores")
+dat2 = data.frame(X=imec1330_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos IMEC1330") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+IMEC1541
+
+```{r}
+cursos = 'IMEC1541'
+
+imec1541_int_des = c()
+imec1541_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1541_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    imec1541_des[i] = NA
+  }
+  else{
+    imec1541_des[i] = tail(nota, n=1)
+  }
+}
+
+imec1541_int_grad = c()
+imec1541_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  imec1541_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    imec1541_grad[i] = NA
+  }
+  else{
+    imec1541_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(imec1541_des,imec1541_grad)
+length(imec1541_des[!is.na(imec1541_des)])
+```
+```{r}
+image_file = file.path(output_dir,'imec1541.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1541_des, grupo="Desertores")
+dat2 = data.frame(X=imec1541_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota IMEC1541") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+```{r}
+image_file = file.path(output_dir,'imec1541int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=imec1541_int_des, grupo="Desertores")
+dat2 = data.frame(X=imec1541_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos IMEC1541") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+```{r}
+cursos = 'QUIM1103'
+
+QUIM1103_int_des = c()
+QUIM1103_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  QUIM1103_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    QUIM1103_des[i] = NA
+  }
+  else{
+    QUIM1103_des[i] = tail(nota, n=1)
+  }
+}
+
+QUIM1103_int_grad = c()
+QUIM1103_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  QUIM1103_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    QUIM1103_grad[i] = NA
+  }
+  else{
+    QUIM1103_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(QUIM1103_des,QUIM1103_grad)
+length(QUIM1103_des[!is.na(QUIM1103_des)])
+```
+```{r}
+image_file = file.path(output_dir,'QUIM1103ult.pdf')
+pdf(image_file)
+dat1 = data.frame(X=QUIM1103_des, grupo="Desertores")
+dat2 = data.frame(X=QUIM1103_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota QUIM1103 último intento") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+
+```{r}
+image_file = file.path(output_dir,'QUIM1103int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=QUIM1103_int_des, grupo="Desertores")
+dat2 = data.frame(X=QUIM1103_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos QUIM1103") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+MATE1203
+
+```{r}
+cursos = 'MATE1203'
+
+MATE1203_int_des = c()
+MATE1203_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  MATE1203_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    MATE1203_des[i] = NA
+  }
+  else{
+    MATE1203_des[i] = tail(nota, n=1)
+  }
+}
+
+MATE1203_int_grad = c()
+MATE1203_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  MATE1203_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    MATE1203_grad[i] = NA
+  }
+  else{
+    MATE1203_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(MATE1203_des,MATE1203_grad)
+length(MATE1203_des[!is.na(MATE1203_des)])
+```
+```{r}
+image_file = file.path(output_dir,'MATE1203ult.pdf')
+pdf(image_file)
+dat1 = data.frame(X=MATE1203_des, grupo="Desertores")
+dat2 = data.frame(X=MATE1203_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota MATE1203 último intento") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+
+```{r}
+image_file = file.path(output_dir,'MATE1203int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=MATE1203_int_des, grupo="Desertores")
+dat2 = data.frame(X=MATE1203_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos MATE1203") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+MATE1214
+
+```{r}
+cursos = 'MATE1214'
+
+MATE1214_int_des = c()
+MATE1214_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  MATE1214_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    MATE1214_des[i] = NA
+  }
+  else{
+    MATE1214_des[i] = tail(nota, n=1)
+  }
+}
+
+MATE1214_int_grad = c()
+MATE1214_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  MATE1214_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    MATE1214_grad[i] = NA
+  }
+  else{
+    MATE1214_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(MATE1214_des,MATE1214_grad)
+length(MATE1214_des[!is.na(MATE1214_des)])
+```
+```{r}
+image_file = file.path(output_dir,'MATE1214ult.pdf')
+pdf(image_file)
+dat1 = data.frame(X=MATE1214_des, grupo="Desertores")
+dat2 = data.frame(X=MATE1214_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota MATE1214 último intento") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+
+```{r}
+image_file = file.path(output_dir,'MATE1214int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=MATE1214_int_des, grupo="Desertores")
+dat2 = data.frame(X=MATE1214_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos MATE1214") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+FISI1018
+
+```{r}
+cursos = 'FISI1018'
+
+FISI1018_int_des = c()
+FISI1018_des = c()
+for (i in 1:length(desertores_prim_cod)) {
+  estudiante = desertores_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  FISI1018_int_des[i] = length(nota)
+  if(length(nota) == 0){
+    FISI1018_des[i] = NA
+  }
+  else{
+    FISI1018_des[i] = tail(nota, n=1)
+  }
+}
+
+FISI1018_int_grad = c()
+FISI1018_grad = c()
+for (i in 1:length(grados_prim_cod)) {
+  estudiante = grados_prim_cod[i]
+  nota = cursos_df[
+    cursos_df$CODIGO_ESTUDIANTE == estudiante &
+    cursos_df$CODIGO_CURSO == cursos,"NOTA_NUMERICA"]
+  FISI1018_int_grad[i] = length(nota)
+  if(length(nota) == 0){
+    FISI1018_grad[i] = NA
+  }
+  else{
+    FISI1018_grad[i] = tail(nota, n=1)
+  }
+}
+t.test(FISI1018_des,FISI1018_grad)
+length(FISI1018_des[!is.na(FISI1018_des)])
+```
+```{r}
+image_file = file.path(output_dir,'FISI1018ult.pdf')
+pdf(image_file)
+dat1 = data.frame(X=FISI1018_des, grupo="Desertores")
+dat2 = data.frame(X=FISI1018_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = .5, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Nota FISI1018 último intento") +
+  xlab("NOTA") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+
+```{r}
+image_file = file.path(output_dir,'FISI1018int.pdf')
+pdf(image_file)
+dat1 = data.frame(X=FISI1018_int_des, grupo="Desertores")
+dat2 = data.frame(X=FISI1018_int_grad, grupo="Graduados")
+dat = rbind(dat1,dat2)
+cdat <- ddply(dat, "grupo", summarise, X.mean=mean(X,na.rm=TRUE))
+
+ggplot(dat, aes(x=X, fill=grupo, colour=grupo)) +
+  geom_histogram(aes(y=..density..), 
+                 binwidth = 1, alpha=0.7, 
+                 position="identity") +
+  geom_vline(data=cdat, aes(xintercept=X.mean,  colour=grupo),
+               linetype="dashed", size=2) +
+  ggtitle("Intentos FISI1018") +
+  xlab("Intentos") + 
+  ylab("Densidad") 
+dev.off()
+```
+
+Ahora hacemos otro poco de analisis con respecto a dónde estamos perdiendo estudiantes.
+
+```{r}
+desertores = data.frame(CODIGO=desertores_prim_cod,IMEC1000=imec1000_des,
+                        IMEC1001=imec1001_des,IMEC1503=imec1503_des,
+                        IMEC1410=imec1410_des,IMEC1330=imec1330_des,
+                        IMEC1541=imec1541_des,QUIM1103=QUIM1103_des,
+                        MATE1214=MATE1214_des,FISI1018=FISI1018_des)
+```
+
+```{r}
+des_apr_preq_IMEC1410 = nrow(desertores[desertores$QUIM1103 >= 3.0 &
+                !is.na(desertores$QUIM1103) & desertores$IMEC1000 >= 3.0 &
+                  !is.na(desertores$IMEC1000),])
+des_apr_preq_noIMEC1410 = nrow(desertores[desertores$QUIM1103 >= 3.0 &
+                !is.na(desertores$QUIM1103) & desertores$IMEC1000 >= 3.0 &
+                !is.na(desertores$IMEC1000) & is.na(desertores$IMEC1410),])
+des_apr_preq_reprIMEC1410 = nrow(desertores[desertores$QUIM1103 >= 3.0 &
+                !is.na(desertores$QUIM1103) & desertores$IMEC1000 >= 3.0 &
+                !is.na(desertores$IMEC1000) &
+                !is.na(desertores$IMEC1410) & desertores$IMEC1410 < 3.0,])
+deser_imec1410 = (des_apr_preq_noIMEC1410+
+                    des_apr_preq_reprIMEC1410)/des_apr_preq_IMEC1410
+des_apr_preq_IMEC1541 = nrow(desertores[desertores$FISI1018 >= 3.0 &
+                !is.na(desertores$FISI1018) & desertores$IMEC1000 >= 3.0 &
+                  !is.na(desertores$IMEC1000) & !is.na(desertores$IMEC1503) &
+                desertores$IMEC1503 >=3.0 & desertores$MATE1214 >=3.0 &
+                  !is.na(desertores$MATE1214),])
+des_apr_preq_noIMEC1541 = nrow(desertores[desertores$FISI1018 >= 3.0 &
+                !is.na(desertores$FISI1018) & desertores$IMEC1000 >= 3.0 &
+                  !is.na(desertores$IMEC1000) & !is.na(desertores$IMEC1503) &
+                desertores$IMEC1503 >=3.0 & desertores$MATE1214 >=3.0 &
+                  !is.na(desertores$MATE1214) &
+                is.na(desertores$IMEC1541),])
+des_apr_preq_reprIMEC1541 = nrow(desertores[desertores$FISI1018 >= 3.0 &
+                !is.na(desertores$FISI1018) & desertores$IMEC1000 >= 3.0 &
+                  !is.na(desertores$IMEC1000) & !is.na(desertores$IMEC1503) &
+                desertores$IMEC1503 >=3.0 & desertores$MATE1214 >=3.0 &
+                  !is.na(desertores$MATE1214) &
+                !is.na(desertores$IMEC1541) & desertores$IMEC1541 < 3.0,])
+deser_imec1541 = (des_apr_preq_noIMEC1541+
+                    des_apr_preq_reprIMEC1541)/des_apr_preq_IMEC1541
+des_apr_preq_IMEC1330 = nrow(desertores[desertores$MATE1214 >= 3.0 &
+                !is.na(desertores$MATE1214) & desertores$IMEC1000 >= 3.0 &
+                  !is.na(desertores$IMEC1000),])
+des_apr_preq_noIMEC1330 = nrow(desertores[desertores$MATE1214 >= 3.0 &
+                !is.na(desertores$MATE1214) & desertores$IMEC1000 >= 3.0 &
+                  !is.na(desertores$IMEC1000) &
+                is.na(desertores$IMEC1330),])
+des_apr_preq_reprIMEC1330 = nrow(desertores[desertores$MATE1214 >= 3.0 &
+                !is.na(desertores$MATE1214) & desertores$IMEC1000 >= 3.0 &
+                  !is.na(desertores$IMEC1000) &
+                !is.na(desertores$IMEC1330) & desertores$IMEC1330 < 3.0,])
+deser_imec1330 = (des_apr_preq_noIMEC1330 +
+                    des_apr_preq_reprIMEC1330)/des_apr_preq_IMEC1330
+des_noIMEC1000 = nrow(desertores[is.na(desertores$IMEC1000),])
+des_reprIMEC1000 = nrow(desertores[!is.na(desertores$IMEC1000) &
+                                     desertores$IMEC1000<3.0,])
+deser_imec1000 = (des_noIMEC1000 + des_reprIMEC1000)/length(desertores_prim_cod)
+des_noIMEC1001 = nrow(desertores[is.na(desertores$IMEC1001),])
+des_reprIMEC1001 = nrow(desertores[!is.na(desertores$IMEC1001) &
+                                     desertores$IMEC1001<3.0,])
+deser_imec1001 = (des_noIMEC1001 + des_reprIMEC1001)/length(desertores_prim_cod)
+des_noIMEC1503 = nrow(desertores[is.na(desertores$IMEC1503),])
+des_reprIMEC1503 = nrow(desertores[!is.na(desertores$IMEC1503) &
+                                     desertores$IMEC1503<3.0,])
+deser_imec1503 = (des_noIMEC1503 + des_reprIMEC1503)/length(desertores_prim_cod)
+```
+
+```{r}
+length(desertores_prim_cod)
+```
+
+
